@@ -4,8 +4,12 @@ import { invoices, customers, revenue, users } from '../lib/placeholder-data';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
-async function seedUsers() {
+// Helper function to ensure the uuid-ossp extension is created
+async function ensureUuidExtension() {
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
+}
+
+async function seedUsers() {
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -30,8 +34,6 @@ async function seedUsers() {
 }
 
 async function seedInvoices() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
       id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -56,8 +58,6 @@ async function seedInvoices() {
 }
 
 async function seedCustomers() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-
   await sql`
     CREATE TABLE IF NOT EXISTS customers (
       id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -103,7 +103,11 @@ async function seedRevenue() {
 
 export async function GET() {
   try {
-    const result = await sql.begin((sql) => [
+    // Ensure the extension is created before starting the transaction
+    await ensureUuidExtension();
+
+    // Seed data within a transaction
+    const result = await sql.begin(async (sql) => [
       seedUsers(),
       seedCustomers(),
       seedInvoices(),
@@ -111,7 +115,8 @@ export async function GET() {
     ]);
 
     return Response.json({ message: 'Database seeded successfully' });
-  } catch (error) {
-    return Response.json({ error }, { status: 500 });
+  } catch (error: any) {
+    console.error('Seeding error:', error); // Log the error for debugging
+    return Response.json({ error: error.message }, { status: 500 });
   }
 }
